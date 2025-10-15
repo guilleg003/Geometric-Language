@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pilas + Figuras · Compacto (PRINT post-op + FOR POP post-op)</title>
+<style>
+  :root{ --beige:#f3e8d0; --black:#000; --white:#fff; --purple:#7a2bc0; --guide:#d6c7a9; --guidefill:#f7efdf; }
+  html,body{height:100%}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial;background:var(--beige);color:var(--black)}
+  .wrap{display:grid; grid-template-rows: auto auto auto; gap:12px; padding:12px; max-width:1200px; margin:0 auto;}
+  .card{background:var(--beige);border:1px solid var(--guide);border-radius:14px;padding:10px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+  h1{font-size:18px;margin:0 0 6px}
+  .top{display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
+  .prebox{height:220px;overflow:auto;background:var(--guidefill);border:1px solid var(--guide);border-radius:10px;padding:8px;font-family:ui-monospace,Consolas,Menlo,monospace; font-size:13px; line-height:1.3; white-space:pre;}
+  .log{height:220px;overflow:auto;background:var(--guidefill);border:1px solid var(--guide);border-radius:10px;padding:8px;white-space:pre-wrap;font-size:13px;line-height:1.35}
+  .tiny{font-size:14px;color:var(--purple);font-weight:800;margin-top:4px}
+  .grid{display:grid;grid-template-columns:repeat(18,56px);gap:6px; justify-content:center}
+  .slot{width:56px;height:56px;background:var(--guidefill);border:1px solid var(--guide);border-radius:10px;display:flex;align-items:center;justify-content:center}
+  svg{display:block;width:56px;height:56px}
+  .clicky{cursor:pointer}
+  .rows{display:grid; gap:6px}
+  .row{display:flex; gap:6px; flex-wrap:wrap; justify-content:center}
+  .controls{display:flex; gap:10px; justify-content:center; margin-top:2px}
+  button{background:var(--white);color:var(--black);border:1px solid var(--guide);border-radius:10px;padding:8px 12px;font-weight:700;font-size:13px;cursor:pointer}
+  .hint{font-size:12px;opacity:.85; text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="card">
+      <h1>Historial de pila</h1>
+      <div id="stackHistory" class="prebox"></div>
+    </div>
+    <div class="card">
+      <h1>Registro de pasos</h1>
+      <div class="log" id="log"></div>
+      <div class="tiny" id="step">Listo.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h1>Expresión</h1>
+    <div id="expr" class="grid" aria-label="expresion"></div>
+    <div style="margin-top:4px;font-weight:800;font-size:14px; text-align:center">
+      Resultado: <span id="result">(vacío)</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h1>Teclas</h1>
+    <div class="rows">
+      <div class="row" id="row-numbers"></div>
+      <div class="row" id="row-ops"></div>
+      <div class="row" id="row-ctrl"></div>
+      <div class="row" id="row-paren"></div>
+      <div class="controls">
+        <button id="evalBtn">Evaluar (animado)</button>
+        <button id="clearBtn">Borrar</button>
+      </div>
+      <div class="hint">
+        <b>FOR</b> hace POP del tope al final de cada vuelta (pop pospuesto tras la operación) · <b>PRINT</b> sale después de la operación.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ==== Helpers ==== */
+function makeSVG(tag, attrs={}){ const el=document.createElementNS('http://www.w3.org/2000/svg', tag); for(const [k,v] of Object.entries(attrs)) el.setAttribute(k,v); return el; }
+function polygonPoints(cx,cy,r,n){ const pts=[], ang=2*Math.PI/n, rot=-Math.PI/2; for(let i=0;i<n;i++){ const x=cx+r*Math.cos(rot+i*ang), y=cy+r*Math.sin(rot+i*ang); pts.push(x+','+y);} return pts.join(' '); }
+
+/* ==== Tokens ==== */
+function numberTokenSVG(d){
+  const svg=makeSVG('svg',{width:56,height:56,viewBox:'0 0 72 72'}), cx=36, cy=36, r=28, purple='var(--purple)';
+  if(d===0){ svg.appendChild(makeSVG('circle',{cx,cy,r:24,fill:'none',stroke:purple,'stroke-width':4})); }
+  else if(d===1){ svg.appendChild(makeSVG('circle',{cx,cy,r:28,fill:'none',stroke:purple,'stroke-width':4})); }
+  else if(d===2){ svg.appendChild(makeSVG('line',{x1:12,y1:36,x2:60,y2:36,stroke:purple,'stroke-width':8,'stroke-linecap':'round'})); }
+  else { const sides={3:3,4:4,5:5,6:6,7:7,8:8,9:9}[d]||8; svg.appendChild(makeSVG('polygon',{points:polygonPoints(cx,cy,r,sides),fill:'none',stroke:purple,'stroke-width':4})); }
+  const t=makeSVG('text',{x:cx,y:cy,'text-anchor':'middle','dominant-baseline':'central','font-size':20,'font-weight':'800',fill:'var(--black)'});
+  t.textContent=String(d); svg.appendChild(t); return svg;
+}
+function makeNumToken(n){ return {kind:'num', value:n, render:()=>numberTokenSVG(n)}; }
+
+function parenSVG(s){ const svg=makeSVG('svg',{width:56,height:56,viewBox:'0 0 72 72'}); const d=(s==='(')?'M44 10 A26 26 0 0 0 44 62':'M28 10 A26 26 0 0 1 28 62'; svg.appendChild(makeSVG('path',{d,fill:'none',stroke:'var(--black)','stroke-width':3})); return svg; }
+function makeParenToken(sym){ return {kind:'paren', value:sym, render:()=>parenSVG(sym)}; }
+
+function opTokenSVG(op,shape){
+  const svg=makeSVG('svg',{width:56,height:56,viewBox:'0 0 72 72'}), cx=36, cy=36, r=30;
+  let base;
+  if(shape==='circle') base=makeSVG('circle',{cx,cy,r,fill:'var(--white)',stroke:'var(--black)','stroke-width':3});
+  else if(shape==='rect') base=makeSVG('rect',{x:cx-28,y:cy-28,width:56,height:56,rx:12,fill:'var(--white)',stroke:'var(--black)','stroke-width':3});
+  else if(shape==='tri') base=makeSVG('polygon',{points:polygonPoints(cx,cy,r,3),fill:'var(--white)',stroke:'var(--black)','stroke-width':3});
+  else if(shape==='pent') base=makeSVG('polygon',{points:polygonPoints(cx,cy,r,5),fill:'var(--white)',stroke:'var(--black)','stroke-width':3});
+  else if(shape==='hex') base=makeSVG('polygon',{points:polygonPoints(cx,cy,r,6),fill:'var(--white)',stroke:'var(--black)','stroke-width':3});
+  else if(shape==='oct') base=makeSVG('polygon',{points:polygonPoints(cx,cy,r,8),fill:'var(--white)',stroke:'var(--black)','stroke-width':3});
+  else base=makeSVG('circle',{cx,cy,r,fill:'var(--white)',stroke:'var(--black)','stroke-width':3});
+  svg.appendChild(base);
+  const lab={'**':'^','//':'∥'}[op]||op;
+  const t=makeSVG('text',{x:cx,y:cy,'text-anchor':'middle','dominant-baseline':'central','font-size':18,'font-weight':'800',fill:'var(--black)'});
+  t.textContent=lab; svg.appendChild(t); return svg;
+}
+function makeOpToken(op,shape){ return {kind:'op', value:op, render:()=>opTokenSVG(op,shape)}; }
+
+function ctrlTokenSVG(name){
+  const svg=makeSVG('svg',{width:56,height:56,viewBox:'0 0 72 72'}), cx=36, cy=36, r=28;
+  const stroke = (name==='PRINT') ? 'var(--purple)' : 'var(--black)';
+  const base = (name==='PRINT')
+    ? makeSVG('polygon',{points:polygonPoints(cx,cy,r,6),fill:'var(--white)',stroke:stroke,'stroke-width':3})
+    : makeSVG('rect',{x:cx-26,y:cy-22,width:52,height:44,rx:10,fill:'var(--white)',stroke:stroke,'stroke-width':3});
+  svg.appendChild(base);
+  const t=makeSVG('text',{x:cx,y:cy,'text-anchor':'middle','dominant-baseline':'central','font-size':16,'font-weight':'800',fill:stroke});
+  t.textContent=name; svg.appendChild(t); return svg;
+}
+function makeCtrlToken(name){ return {kind:(name==='PRINT'?'print':'ctrl'), value:name, render:()=>ctrlTokenSVG(name)}; }
+
+/* ==== Parser (Shunting-yard modificado) ==== */
+const PRECEDENCE={'==':1,'!=':1,'>':1,'<':1,'+':2,'-':2,'*':3,'/':3,'//':3,'%':3,'**':4};
+const RIGHT_ASSOC=new Set(['**']);
+function toRPN(tokens){
+  const out=[], ops=[]; let pendingPrints=0, pendingPops=0;
+  function flushAfterOp(){
+    if(pendingPrints>0){ for(let k=0;k<pendingPrints;k++) out.push('PRINT'); pendingPrints=0; }
+    if(pendingPops>0){ for(let k=0;k<pendingPops;k++) out.push('STACK_POP'); pendingPops=0; }
+  }
+  for(const t of tokens){
+    if(t.kind==='num'){ out.push(t.value); }
+    else if(t.kind==='op'){
+      const p=PRECEDENCE[t.value];
+      while(ops.length && ops[ops.length-1] !== '(' &&
+            ((!RIGHT_ASSOC.has(ops[ops.length-1]) && PRECEDENCE[ops[ops.length-1]] >= p) ||
+             (RIGHT_ASSOC.has(ops[ops.length-1]) && PRECEDENCE[ops[ops.length-1]] > p))){
+        out.push(ops.pop()); flushAfterOp();
+      }
+      ops.push(t.value);
+    }else if(t.value==='('){ ops.push('('); }
+    else if(t.value===')'){
+      while(ops.length && ops[ops.length-1] !== '('){ out.push(ops.pop()); flushAfterOp(); }
+      if(!ops.length) throw new Error('Paréntesis desbalanceados'); ops.pop();
+    }else if(t.kind==='print'){ pendingPrints++; }
+    else if(t.kind==='pop'){ pendingPops++; }
+  }
+  while(ops.length){ const op=ops.pop(); if(op==='(') throw new Error('Paréntesis desbalanceados'); out.push(op); flushAfterOp(); }
+  flushAfterOp();
+  return out;
+}
+
+/* ==== Expansor de bloques ==== */
+function evalRPNSilent(rpn){
+  const st=[];
+  for(const t of rpn){
+    if(typeof t==='number') st.push(t);
+    else if(t==='PRINT'){ /* no-op en modo silencioso */ }
+    else if(t==='STACK_POP'){ if(st.length>0) st.pop(); }
+    else { const b=st.pop(), a=st.pop(); switch(t){
+      case '+': st.push(a+b); break; case '-': st.push(a-b); break; case '*': st.push(a*b); break;
+      case '/': st.push(Math.round(a/b)); break; case '//': st.push(Math.round(a/b)); break; case '%': st.push(a%b); break;
+      case '**': st.push(a**b); break; case '>': st.push(a>b?1:0); break; case '<': st.push(a<b?1:0); break;
+      case '==': st.push(a===b?1:0); break; case '!=': st.push(a!==b?1:0); break; default: throw new Error('Op '+t);
+    } }
+  }
+  return st.pop() ?? 0;
+}
+function expandBlocks(tokens){
+  let i=0; const out=[];
+  function readUntil(stops){ const acc=[]; while(i<tokens.length && !stops.includes(tokens[i].value)) acc.push(tokens[i++]); if(i>=tokens.length) throw new Error('Falta '+stops.join('/')); return acc; }
+  while(i<tokens.length){
+    const t=tokens[i++];
+    if(t.kind==='ctrl' && t.value==='FOR'){
+      const countExpr=readUntil(['DO']); i++; const body=readUntil(['END']); i++;
+      const n=Math.max(0,Math.min(200,Number(evalRPNSilent(toRPN(countExpr)))));
+      for(let k=0;k<n;k++){ out.push(...body); out.push({kind:'pop'}); }
+    }else if(t.kind==='ctrl' && t.value==='IF'){
+      const branches=[]; const c0=readUntil(['DO']); i++; const b0=readUntil(['ELIF','ELSE','END']); branches.push({cond:c0, body:b0});
+      while(i<tokens.length && tokens[i].value==='ELIF'){ i++; const c=readUntil(['DO']); i++; const b=readUntil(['ELIF','ELSE','END']); branches.push({cond:c, body:b}); }
+      let elseBody=null; if(i<tokens.length && tokens[i].value==='ELSE'){ i++; elseBody=readUntil(['END']); }
+      if(i>=tokens.length || tokens[i].value!=='END') throw new Error('IF sin END'); i++;
+      let chosen=null; for(const br of branches){ if(Number(evalRPNSilent(toRPN(br.cond)))>0){ chosen=br.body; break; } }
+      out.push(...(chosen||elseBody||[]));
+    }else{ out.push(t); }
+  }
+  return out;
+}
+
+/* ==== Evaluación animada ==== */
+function evalRPNAnimated(rpn,{onLog,onStep,onSnap,onDone}){
+  const stack=[]; let i=0; let snapId=0, lastSig='';
+  function snapshot(){ const sig=JSON.stringify(stack); if(sig!==lastSig){ lastSig=sig; onSnap(++snapId, stack.slice()); } }
+  onLog('RPN: '+JSON.stringify(rpn)+'\n'); snapshot();
+  const timer=setInterval(()=>{
+    if(i>=rpn.length){ clearInterval(timer); onDone(stack.length?stack[stack.length-1]:null); onStep('Hecho.'); return; }
+    const tok=rpn[i++];
+    if(typeof tok==='number'){ stack.push(tok); onLog('Push '+tok); }
+    else if(tok==='PRINT'){ const top=stack[stack.length-1]; onLog('PRINT => '+top); alert(top!==undefined?top:'(vacío)'); }
+    else if(tok==='STACK_POP'){ if(stack.length>0){ const v=stack.pop(); onLog('POP => '+v); } else { onLog('POP (pila vacía)'); } }
+    else{ if(stack.length<2){ onLog('Error: expresión inválida'); clearInterval(timer); onStep('Error'); return; }
+      const b=stack.pop(), a=stack.pop(); let res;
+      switch(tok){ case '+':res=a+b;break; case '-':res=a-b;break; case '*':res=a*b;break; case '/':res=Math.round(a/b);break; case '//':res=Math.round(a/b);break; case '%':res=a%b;break; case '**':res=a**b;break; case '>':res=a>b?1:0;break; case '<':res=a<b?1:0;break; case '==':res=a===b?1:0;break; case '!=':res=a!==b?1:0;break; default: console.warn('Op desconocido',tok); res=NaN; }
+      onLog(`${a} ${tok} ${b} => ${res}`); stack.push(res);
+    }
+    snapshot(); onStep(`Paso ${i}/${rpn.length}`);
+  }, 420);
+}
+
+/* ==== App ==== */
+function app(){
+  const expr=document.getElementById('expr'), result=document.getElementById('result'), logEl=document.getElementById('log'), step=document.getElementById('step'), stackHistory=document.getElementById('stackHistory');
+  const state={tokens:[]};
+  function redraw(){ expr.innerHTML=''; const max=18; for(let i=0;i<max;i++){ const slot=document.createElement('div'); slot.className='slot'; if(state.tokens[i]){ const w=document.createElement('div'); w.className='clicky'; w.title='Quitar'; w.appendChild(state.tokens[i].render()); w.onclick=()=>{ state.tokens.splice(i,1); redraw(); }; slot.appendChild(w);} expr.appendChild(slot);} }
+  function push(t){ state.tokens.push(t); redraw(); }
+
+  const rowNum=document.getElementById('row-numbers'); for(let n=0;n<=9;n++){ const d=document.createElement('div'); d.className='clicky'; d.appendChild(makeNumToken(n).render()); d.onclick=()=>push(makeNumToken(n)); rowNum.appendChild(d); }
+  const rowOps=document.getElementById('row-ops'); [['+','circle'],['-','rect'],['*','tri'],['/','rect'],['%','pent'],['**','hex'],['!=','oct'],['//','rect'],['>','circle'],['<','circle'],['==','circle']].forEach(([op,sh])=>{ const d=document.createElement('div'); d.className='clicky'; d.appendChild(makeOpToken(op,sh).render()); d.onclick=()=>push(makeOpToken(op,sh)); rowOps.appendChild(d); });
+  const rowCtrl=document.getElementById('row-ctrl'); ['IF','ELIF','ELSE','FOR','DO','END','PRINT'].forEach(name=>{ const d=document.createElement('div'); d.className='clicky'; d.appendChild(makeCtrlToken(name).render()); d.onclick=()=>push(makeCtrlToken(name)); rowCtrl.appendChild(d); });
+  const rowPar=document.getElementById('row-paren'); ['(',')'].forEach(s=>{ const d=document.createElement('div'); d.className='clicky'; d.appendChild(makeParenToken(s).render()); d.onclick=()=>push(makeParenToken(s)); rowPar.appendChild(d); });
+
+  function log(m){ logEl.textContent += m+'\n'; logEl.scrollTop = logEl.scrollHeight; }
+  function snap(id, arr){ stackHistory.textContent += `#${id}  [${arr.join(', ')}]  (tope=${arr[arr.length-1] ?? '∅'})\n`; stackHistory.scrollTop = stackHistory.scrollHeight; }
+  function evaluate(){ logEl.textContent=''; stackHistory.textContent=''; step.textContent='Preparando...';
+    try{ const expanded=expandBlocks(state.tokens); const rpn=toRPN(expanded); evalRPNAnimated(rpn,{onLog:log,onStep:t=>step.textContent=t,onSnap:snap,onDone:v=>{result.textContent=(v!=null? v : '(vacío)');}}); }
+    catch(e){ alert(e.message); step.textContent='Error'; }
+  }
+  document.getElementById('evalBtn').addEventListener('click', evaluate);
+  document.getElementById('clearBtn').addEventListener('click', ()=>{ state.tokens=[]; redraw(); logEl.textContent=''; stackHistory.textContent=''; step.textContent='Listo.'; result.textContent='(vacío)'; });
+
+  redraw();
+}
+document.addEventListener('DOMContentLoaded', app);
+</script>
+</body>
+</html>
