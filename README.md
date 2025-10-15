@@ -1,111 +1,157 @@
-Shapelang – Figure-Based Language
+# Shapelang – Figure-Based Language
 
-Shapelang is an unconventional, visual programming language where geometric shapes represent numbers, operators, and control structures.
-The project blends art and code: shapes are interpreted with a stack machine and compiled to Reverse Polish Notation (RPN), then executed step-by-step by a virtual machine.
+**Shapelang** is a visual programming language where geometric shapes represent numbers, operators, and control structures.  
+Shapes are interpreted with a **stack machine**, compiled to **Reverse Polish Notation (RPN)**, and executed step-by-step by a virtual machine (VM).
 
-Project Goals
+---
 
-Build an interpreted, physical language in which geometric shapes act as tokens.
+## Table of Contents
+- [Project Goals](#project-goals)
+- [Language Structure](#language-structure)
+  - [Digits (0–9)](#digits-0–9)
+  - [Arithmetic Operators](#arithmetic-operators)
+  - [Comparisons](#comparisons)
+  - [Structures & Control](#structures--control)
+  - [Operational Summary](#operational-summary)
+- [Execution Flow](#execution-flow)
+- [Control Structures](#control-structures)
+  - [`FOR n DO … END`](#for-n-do--end)
+  - [`IF / ELIF / ELSE`](#if--elif--else)
+- [Repository Contents](#repository-contents)
+- [Notes](#notes)
+- [Getting Started](#getting-started)
 
-Implement a stack-based virtual machine that supports arithmetic, loops, and conditionals.
+---
 
-Display step-by-step execution (stack history and operation log).
+## Project Goals
 
-Integrate RPN (Reverse Polish Notation) to eliminate the need for parentheses.
+- Build an interpreted, **shape-driven** language (shapes are tokens).
+- Implement a **stack-based VM** supporting arithmetic, loops, and conditionals.
+- Display **step-by-step execution** (stack history + operation log).
+- Use **RPN (Reverse Polish Notation)** to remove the need for parentheses.
+- Serve as a **visual teaching tool** for logic and programming.
 
-Serve as a visual, educational tool to teach logic and programming.
+---
 
-Language Structure (as used in the app)
-Digits (0–9)
+## Language Structure
 
-Digits are represented as purple shapes and are pushed directly onto the stack.
+### Digits (0–9)
 
-Digit	UI Shape
-0	Hollow circle (purple stroke)
-1	Circle with thicker purple stroke
-2	Horizontal purple bar
-3	Purple triangle
-4	Purple rhombus
-5	Purple pentagon
-6	Purple hexagon
-7	Purple heptagon
-8	Purple octagon
-9	Purple nonagon
+Digits are shown as **purple shapes** and are **pushed** directly onto the stack.
 
-Purple indicates numeric values.
+| Digit | UI Shape (Purple)                   |
+|:-----:|-------------------------------------|
+| 0     | Hollow circle (purple stroke)       |
+| 1     | Circle with thicker purple stroke   |
+| 2     | Horizontal bar                      |
+| 3     | Triangle                            |
+| 4     | Rhombus                              |
+| 5     | Pentagon                             |
+| 6     | Hexagon                              |
+| 7     | Heptagon                             |
+| 8     | Octagon                              |
+| 9     | Nonagon                              |
 
-Arithmetic Operators
+> **Purple** indicates **numeric values**.
 
-White buttons with a black outline. Each operator pops two values from the stack and pushes the result.
+---
 
-Operator	Button	Description
-+	circle with “+”	Addition
--	square with “−”	Subtraction
-*	triangle with “*”	Multiplication
-/	square with “/”	Division (rounded with Math.round)
-//	rectangle with “∥”	Integer division (also rounded)
-%	pentagon with “%”	Modulo
-**	hexagon with “^”	Exponentiation
-Comparisons
+### Arithmetic Operators
 
-Also white buttons with a black outline. They push 1 (true) or 0 (false).
+White buttons with a black outline. Each operator **pops two** values from the stack and **pushes** the result.
 
-Operator	Description
->	Greater than
-<	Less than
-==	Equality
-!=	Not equal
-Structures & Control
-Token	Appearance	Behavior
-IF, ELIF, ELSE, DO, END	White rectangular buttons	Expand before execution: evaluate the condition and insert only the matching block.
-FOR	White rectangular button	Repeats the block N times and appends a POP at the end of each iteration (deferred pop).
-PRINT	Purple hexagon	Displays the top of the stack without popping (post-operation).
-(, )	Black parentheses	Affect ordering only; they do not touch the stack.
-Operational Summary
+| Operator | Button (concept)     | Description        |
+|:--------:|-----------------------|--------------------|
+| `+`      | circle with “+”       | Addition           |
+| `-`      | square with “−”       | Subtraction        |
+| `*`      | triangle with “*”     | Multiplication     |
+| `/`      | square with “/”       | Division (`Math.round`) |
+| `//`     | rectangle with “∥”    | Integer division (rounded) |
+| `%`      | pentagon with “%”     | Modulo             |
+| `**`     | hexagon with “^”      | Exponentiation     |
 
-Numbers: push n
+---
 
-Operators: pop two values, push the computed result
+### Comparisons
 
-Comparisons: pop two values, push 1 or 0
+Also white buttons with a black outline. They push **1** (true) or **0** (false).
 
-PRINT: show top of stack, no pop
+| Operator | Description  |
+|:--------:|--------------|
+| `>`      | Greater than |
+| `<`      | Less than    |
+| `==`     | Equality     |
+| `!=`     | Not equal    |
 
-FOR: macro expansion + POP at the end of each loop cycle
+---
 
-IF / ELIF / ELSE: expand the selected block prior to execution
+### Structures & Control
 
-Parentheses: precedence only; no stack effect
+| Token                 | Appearance                  | Behavior                                                                 |
+|-----------------------|-----------------------------|--------------------------------------------------------------------------|
+| `IF`, `ELIF`, `ELSE`, `DO`, `END` | White rectangular buttons | **Expand before** execution: evaluate the condition and insert only the matching block. |
+| `FOR`                 | White rectangular button    | Repeats the block **N** times and appends a **POP** at the end of each iteration (deferred pop). |
+| `PRINT`               | Purple hexagon              | Shows the top of the stack **without popping**.                          |
+| `(`, `)`              | Black parentheses           | **Precedence only**; they do **not** touch the stack.                    |
 
-Execution Flow
+---
 
-Human interpretation: shapes are mapped to numeric or logical symbols.
+### Operational Summary
 
-RPN conversion: expressions are converted to RPN via a shunting-yard–style algorithm.
+- **Numbers:** `push n`  
+- **Operators:** pop two values, push the computed result  
+- **Comparisons:** pop two values, push `1` or `0`  
+- **PRINT:** display top of stack (no pop)  
+- **FOR:** macro expansion + **POP** at the end of each loop cycle  
+- **IF / ELIF / ELSE:** expand the selected block **before** execution  
+- **Parentheses:** ordering only; **no stack effect**
 
-Expansion: structural blocks (IF, FOR, ELSE, etc.) are resolved before running.
+---
 
-Animated execution: the VM updates the stack step by step, showing results and visual history.
+## Execution Flow
 
-Control Structures
-FOR n DO … END
+1. **Shape mapping** → shapes are mapped to numeric/logical symbols.  
+2. **RPN conversion** → shunting-yard algorithm produces RPN.  
+3. **Expansion** → structural blocks (`IF`, `ELIF`, `ELSE`, `FOR`, …) are resolved ahead of execution.  
+4. **Animated execution** → the VM updates the stack step by step; the UI shows the stack history and the operation log.
 
-Repeat the block n times.
-After each iteration, a POP is automatically performed to clean the stack.
+---
 
-IF / ELIF / ELSE
+## Control Structures
 
-Evaluate a condition and expand only the truthy block before execution.
-Conditions must push 1 (true) or 0 (false).
+### `FOR n DO … END`
 
-Repository Contents
-File	Description
-VM_correcto.html	Web app: visual UI with shapes, RPN parser, and animated execution.
-MV2.0.py	Python implementation of the stack-based virtual machine (executes language instructions).
-proyecto 1- figuras geométricas 2.pdf	Full language write-up and project presentation.
-README.md	Project overview, goals, and run guide.
-Notes
+Repeat the block **n** times.  
+After each iteration, a **POP** is automatically performed to clean the stack.
 
-The language is designed to be visual first: shapes are the primary notation; textual symbols are derived for parsing and execution.
+### `IF / ELIF / ELSE`
 
-RPN simplifies evaluation and makes the step-by-step stack updates transparent for learning.
+Evaluate a condition and **expand only the truthy block** before execution.  
+Conditions push **1** (true) or **0** (false).
+
+---
+
+## Repository Contents
+
+| File                         | Description                                                              |
+|------------------------------|--------------------------------------------------------------------------|
+| `VM_correcto.html`           | Web app: visual UI with shapes, RPN parser, and animated execution.     |
+| `MV2.0.py`                   | Python VM implementation (stack-based; executes language instructions). |
+| `proyecto 1- figuras geométricas 2.pdf` | Full language write-up and project presentation.                  |
+| `README.md`                  | Project overview, goals, and run guide.                                  |
+
+---
+
+## Notes
+
+- The language is **visual-first**: shapes are the primary notation; textual symbols are derived for parsing/execution.  
+- RPN simplifies evaluation and makes stack changes **transparent** for learning.
+
+---
+
+## Getting Started
+
+**Web app**
+```bash
+# Open in a modern browser
+open VM_correcto.html
